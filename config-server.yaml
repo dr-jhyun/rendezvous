@@ -1,0 +1,11 @@
+# --------------------------
+# Probe config file
+# --------------------------
+ServerMode: true
+Verbose: true
+
+ServerConfig:
+  Ports:
+    - 7050
+    - 7051
+    - 7052    	
