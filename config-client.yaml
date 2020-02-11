@@ -1,5 +1,5 @@
 # --------------------------
-# Probe config file
+# Rendezvous config file
 # --------------------------
 ServerMode: false
 Verbose: true
