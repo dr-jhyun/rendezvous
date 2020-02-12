@@ -10,11 +10,11 @@ ClientConfig:
       - 7050
       - 7051
       - 7052
-    ProbeServerRunning: false
+    ProbeServerRunning: true
 
     # Next options have meaning only when ProbeServerRunning is true
     CheckDockerImages:
-      - hyperledger/fabric-ccenv:latest:ca4780293e4c
+      - hyperledger/fabric-ccenv:latest:5b31d55f5f3a
       - hyperledger/fabric-tools:1.4.0:0a44f4261a55
       - hyperledger/fabric-orderer:1.4.0:54f372205580
       - hyperledger/fabric-peer:1.4.0:304fac59b501
@@ -30,7 +30,7 @@ ClientConfig:
 
     # Next options have meaning only when ProbeServerRunning is true
     CheckDockerImages:
-      - hyperledger/fabric-ccenv:latest:ca4780293e4c
+      - hyperledger/fabric-ccenv:latest:5b31d55f5f3a
       - hyperledger/fabric-tools:1.4.0:0a44f4261a55
       - hyperledger/fabric-orderer:1.4.0:54f372205580
       - hyperledger/fabric-peer:1.4.0:304fac59b501

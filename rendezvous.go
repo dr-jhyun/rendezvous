@@ -408,7 +408,7 @@ func processDockerImages(targetAddr, port string, list bool, checkImages []strin
 		}
 
 		if notFound {
-			err = fmt.Errorf("docker image is not installed")
+			err = fmt.Errorf("some docker image is not installed")
 		}
 	}
 
