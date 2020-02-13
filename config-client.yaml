@@ -12,7 +12,7 @@ ClientConfig:
       - 7052
     ProbeServerRunning: true
 
-    # Next options have meaning only when ProbeServerRunning is true
+    # Next lines have meaning only when above 'ProbeServerRunning' option is true
     CheckDockerImages:
       - hyperledger/fabric-ccenv:latest:5b31d55f5f3a
       - hyperledger/fabric-tools:1.4.0:0a44f4261a55
@@ -28,7 +28,7 @@ ClientConfig:
       - 7052
     ProbeServerRunning: true
 
-    # Next options have meaning only when ProbeServerRunning is true
+    # Next lines have meaning only when above 'ProbeServerRunning' option is true
     CheckDockerImages:
       - hyperledger/fabric-ccenv:latest:5b31d55f5f3a
       - hyperledger/fabric-tools:1.4.0:0a44f4261a55

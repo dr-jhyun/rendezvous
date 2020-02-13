@@ -13,7 +13,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"github.com/forestgiant/sliceutil"
 	"gopkg.in/yaml.v2"
@@ -21,8 +20,8 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -33,6 +32,9 @@ import (
 
 	pshost "github.com/shirou/gopsutil/host"
 	goLog "github.com/withmandalA/go-log"
+
+	// https://godoc.org/gopkg.in/alecthomas/kingpin.v2
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type Config struct {
@@ -60,11 +62,8 @@ type ServerResponse struct {
 	Hash     string          `json:"hash,omitempty"`
 }
 
-type stringSliceFlag []string
-
 const (
 	responseTimeout = 2 * time.Second
-	appVersion      = "Probe version 1.0.0"
 )
 
 var (
@@ -72,8 +71,9 @@ var (
 	dockerClient *docker.Client
 	log          *goLog.Logger = goLog.New(os.Stderr).WithColor().WithDebug().WithoutTimestamp()
 
-	verbose    bool = false
-	errorOccur bool = false
+	appVersion       = os.Args[0] + " version 1.0.0\n" + runtime.Version() + " " + runtime.GOOS + "/" + runtime.GOARCH
+	verboseMode bool = false
+	errorOccur  bool = false
 )
 
 func main() {
@@ -109,42 +109,40 @@ func main() {
 
 func readConfig() (*Config, error) {
 	var (
-		targetAddress     stringSliceFlag
-		ports             stringSliceFlag
-		checkDockerImages stringSliceFlag
-		config            = new(Config)
+		config = &Config{}
+
+		app     = kingpin.New(os.Args[0], "Port & container scanner")
+		verbose = app.Flag("verbose", "Verbose information").Short('v').Bool()
+
+		// file subcommand
+		fileCmd    = app.Command("file", "Read config file").Default()
+		configFile = fileCmd.Flag("file", "Config yaml file").Short('f').Required().File()
+
+		// server subcommand
+		serverCmd   = app.Command("server", "Server mode")
+		serverPorts = serverCmd.Flag("port", "Port to listen").Short('p').Required().Strings()
+
+		// client subcommand
+		clientCmd          = app.Command("client", "Client mode")
+		targetAddresses    = clientCmd.Flag("Target address", "Target address to scan").Short('t').Required().Strings()
+		clientPorts        = clientCmd.Flag("port", "Port to scan").Short('p').Required().Strings()
+		checkDockerImages  = clientCmd.Flag("image", "Find Docker images in server").Short('i').Strings()
+		probeServerRunning = clientCmd.Flag("run", "Server is running in target node").Short('r').Bool()
+		listDockerImages   = clientCmd.Flag("list", "List Docker images").Short('l').Bool()
 	)
 
-	genFlag := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-
-	configFilePtr := genFlag.String("f", "", "Config yaml file")
-	serverModePtr := genFlag.Bool("s", false, "Server mode")
-	genFlag.Var(&targetAddress, "c", "Target address list")
-	genFlag.Var(&ports, "p", "Port to scan")
-	probeServerRunningPtr := genFlag.Bool("r", true, "Server is running in target node")
-	verbosePtr := genFlag.Bool("v", false, "Print verbose information")
-	genFlag.Var(&checkDockerImages, "i", "Find docker images in server")
-	listDockerImagesPtr := genFlag.Bool("l", false, "Print docker image list")
-	versionPtr := genFlag.Bool("version", false, "Print current version")
-
-	_ = genFlag.Parse(os.Args[1:])
-
-	if genFlag.NFlag() < 1 {
-		genFlag.Usage()
-		os.Exit(1)
+	if len(os.Args) < 2 {
+		kingpin.Usage()
+		return nil, fmt.Errorf("insufficient paramter")
 	}
 
-	if *versionPtr {
-		fmt.Println(appVersion)
-		os.Exit(0)
-	}
+	app.Version(appVersion)
+	app.HelpFlag.Short('h')
 
-	configFile := *configFilePtr
+	switch kingpin.MustParse(app.Parse(os.Args[1:])) {
 
-	// read config from file
-	if configFile != "" {
-		filename, _ := filepath.Abs(configFile)
-		yamlData, err := ioutil.ReadFile(filename)
+	case fileCmd.FullCommand():
+		yamlData, err := ioutil.ReadAll(*configFile)
 
 		if err != nil {
 			return nil, err
@@ -154,31 +152,35 @@ func readConfig() (*Config, error) {
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		config.ServerMode = *serverModePtr
-		config.Verbose = *verbosePtr
 
-		if config.ServerMode {
-			config.ServerConfig.Ports = ports
-			config.ClientConfig = nil
-		} else {
-			config.ServerConfig = ServerSpec{}
-			for _, targetAddr := range targetAddress {
-				clientConfig := ClientSpec{
-					TargetAddress:      targetAddr,
-					ProbeServerRunning: *probeServerRunningPtr,
-					Ports:              ports,
-					CheckDockerImages:  checkDockerImages,
-					ListDockerImages:   *listDockerImagesPtr,
-				}
-				config.ClientConfig = append(config.ClientConfig, clientConfig)
+	case serverCmd.FullCommand():
+		config.ServerMode = true
+		config.Verbose = *verbose
+		config.ServerConfig.Ports = *serverPorts
+		config.ClientConfig = nil
+
+	case clientCmd.FullCommand():
+		config.ServerMode = false
+		config.Verbose = *verbose
+		config.ServerConfig = ServerSpec{}
+		for _, targetAddress := range *targetAddresses {
+			clientConfig := ClientSpec{
+				TargetAddress:      targetAddress,
+				Ports:              *clientPorts,
+				ProbeServerRunning: *probeServerRunning,
+				CheckDockerImages:  *checkDockerImages,
+				ListDockerImages:   *listDockerImages,
 			}
+			config.ClientConfig = append(config.ClientConfig, clientConfig)
 		}
+
+	default:
+		return nil, fmt.Errorf("unexpected parameter parsing")
 	}
 
-	verbose = config.Verbose
+	verboseMode = config.Verbose
 
-	if verbose {
+	if verboseMode {
 		jsonAsBytes, _ := json.MarshalIndent(*config, "", "  ")
 
 		fmt.Println("------------------------------")
@@ -224,6 +226,10 @@ func processServerMode(config *Config) error {
 }
 
 func processClientMode(config *Config) error {
+	var (
+		err	error
+	)
+	
 	httpClient = &http.Client{Timeout: responseTimeout}
 
 	if len(config.ClientConfig) == 0 {
@@ -235,16 +241,18 @@ func processClientMode(config *Config) error {
 		targetAddr := clientConfig.TargetAddress
 		ports := clientConfig.Ports
 
-		fmt.Println("\n\n\n=============== [", tIdx, "] Target server:", targetAddr, "===============")
+		fmt.Println("\n\n=============== [", tIdx, "] Target server:", targetAddr, "===============")
 
-		if validIP4(targetAddr) == false {
-			log.Error("Invalid target IP address:", targetAddr)
+		targetAddr, err = getAddressIP4(targetAddr)
+		
+		if err != nil {
+			log.Error(err.Error())
 			errorOccur = true
 			continue
 		}
 
 		if len(ports) == 0 {
-			log.Error("Port should be designated")
+			log.Error("port should be designated")
 			errorOccur = true
 			continue
 		}
@@ -252,7 +260,7 @@ func processClientMode(config *Config) error {
 		// for each port
 		var successPort string
 		for _, port := range ports {
-			err := processPortProbe(targetAddr, port, clientConfig.ProbeServerRunning)
+			err = processPortProbe(targetAddr, port, clientConfig.ProbeServerRunning)
 
 			if err != nil {
 				log.Error(err.Error())
@@ -266,7 +274,7 @@ func processClientMode(config *Config) error {
 		// docker images
 		if clientConfig.ProbeServerRunning && successPort != "" &&
 			(clientConfig.ListDockerImages || len(clientConfig.CheckDockerImages) > 0) {
-			err := processDockerImages(targetAddr, successPort, clientConfig.ListDockerImages, clientConfig.CheckDockerImages)
+			err = processDockerImages(targetAddr, successPort, clientConfig.ListDockerImages, clientConfig.CheckDockerImages)
 
 			if err != nil {
 				log.Error(err.Error())
@@ -330,23 +338,23 @@ func processPortProbe(targetAddr, port string, serverRunning bool) error {
 	calcHashAsHexString := hex.EncodeToString(calcHashAsBytes[:])
 
 	if receivedHash != calcHashAsHexString {
-		if verbose {
+		if verboseMode {
 			fmt.Println(string(resposeAsBytes))
 			fmt.Println("\treceived hash: ", receivedHash)
 			fmt.Println("\tcalculated hash: ", calcHashAsHexString)
 		}
-		return fmt.Errorf("hash mismatch")
+		return fmt.Errorf("http content hash mismatch")
 	}
 
 	if targetAddr != serverResponse.HostIP {
-		if verbose {
+		if verboseMode {
 			fmt.Println("\trequest address: ", targetAddr)
 			fmt.Println("\tresponse aderess: ", serverResponse.HostIP)
 		}
 		return fmt.Errorf("address mismatch")
 	}
 
-	if verbose {
+	if verboseMode {
 		fmt.Println("\t" + strings.ReplaceAll(string(resposeAsBytes), "\n", "\n\t"))
 		fmt.Println("\tResponse time:", responseTime)
 	} else {
@@ -393,7 +401,7 @@ func processDockerImages(targetAddr, port string, list bool, checkImages []strin
 			imageTag := image[:idx]
 			imageId := image[idx+1:]
 
-			if verbose {
+			if verboseMode {
 				fmt.Println("\tTag:", imageTag)
 				fmt.Println("\tID :", imageId)
 			}
@@ -482,6 +490,22 @@ func dockerClientInit() error {
 	return nil
 }
 
+func getAddressIP4(address string) (string, error) {
+	if validIP4(address) {
+		return address, nil
+	}
+	
+	// lookup host
+	addr, err := net.LookupIP(address)
+	if err != nil {
+      return "", fmt.Errorf("invalid address \"%s\"", address)
+   }
+   
+   fmt.Println("\n\tLookup host:", address, "-->", addr[0])
+   
+   return addr[0].String(), nil
+}
+
 //https://socketloop.com/tutorials/golang-validate-ip-address
 func validIP4(ipAddress string) bool {
 	ipAddress = strings.Trim(ipAddress, " ")
@@ -503,13 +527,4 @@ func GetOutboundIP() net.IP {
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 
 	return localAddr.IP
-}
-
-func (stringSlice *stringSliceFlag) String() string {
-	return "string slice argument"
-}
-
-func (stringSlice *stringSliceFlag) Set(value string) error {
-	*stringSlice = append(*stringSlice, value)
-	return nil
 }
