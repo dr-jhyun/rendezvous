@@ -40,20 +40,21 @@ import (
 type Config struct {
 	ServerMode   bool         `yaml:"ServerMode"`
 	Verbose      bool         `yaml:"Verbose"`
-	ServerConfig ServerSpec   `yaml:"ServerConfig" json:"ServerConfig,omitempty"`
+	ServerConfig []ServerSpec `yaml:"ServerConfig" json:"ServerConfig,omitempty"`
 	ClientConfig []ClientSpec `yaml:"ClientConfig" json:"ClientConfig,omitempty"`
 }
 
 type ServerSpec struct {
-	Ports []string `yaml:"Ports" json:"Ports,omitempty"`
+	Address string   `yaml:"Address,omitempty"`
+	Ports   []string `yaml:"Ports"`
 }
 
 type ClientSpec struct {
-	TargetAddress      string   `yaml:"TargetAddress"`
-	Ports              []string `yaml:"Ports"`
-	ProbeServerRunning bool     `yaml:"ProbeServerRunning"`
-	CheckDockerImages  []string `yaml:"CheckDockerImages"`
-	ListDockerImages   bool     `yaml:"ListDockerImages"`
+	ServerAddress     string   `yaml:"ServerAddress"`
+	Ports             []string `yaml:"Ports"`
+	RendezvousRunning bool     `yaml:"RendezvousRunning"`
+	CheckDockerImages []string `yaml:"CheckDockerImages"`
+	ListDockerImages  bool     `yaml:"ListDockerImages"`
 }
 
 type ServerResponse struct {
@@ -120,15 +121,16 @@ func readConfig() (*Config, error) {
 
 		// server subcommand
 		serverCmd   = app.Command("server", "Server mode")
+		addresses   = serverCmd.Flag("address", "Address to listen").Short('a').Default("127.0.0.1").Strings()
 		serverPorts = serverCmd.Flag("port", "Port to listen").Short('p').Required().Strings()
 
 		// client subcommand
-		clientCmd          = app.Command("client", "Client mode")
-		targetAddresses    = clientCmd.Flag("Target address", "Target address to scan").Short('t').Required().Strings()
-		clientPorts        = clientCmd.Flag("port", "Port to scan").Short('p').Required().Strings()
-		checkDockerImages  = clientCmd.Flag("image", "Find Docker images in server").Short('i').Strings()
-		probeServerRunning = clientCmd.Flag("run", "Server is running in target node").Short('r').Bool()
-		listDockerImages   = clientCmd.Flag("list", "List Docker images").Short('l').Bool()
+		clientCmd         = app.Command("client", "Client mode")
+		serverAddresses   = clientCmd.Flag("Server address", "Server address to scan").Short('a').Required().Strings()
+		clientPorts       = clientCmd.Flag("port", "Port to scan").Short('p').Required().Strings()
+		checkDockerImages = clientCmd.Flag("image", "Find Docker images in server").Short('i').Strings()
+		rendezvousRunning = clientCmd.Flag("run", "Server is running in target node").Short('r').Bool()
+		listDockerImages  = clientCmd.Flag("list", "List Docker images").Short('l').Bool()
 	)
 
 	if len(os.Args) < 2 {
@@ -156,20 +158,26 @@ func readConfig() (*Config, error) {
 	case serverCmd.FullCommand():
 		config.ServerMode = true
 		config.Verbose = *verbose
-		config.ServerConfig.Ports = *serverPorts
 		config.ClientConfig = nil
+		for _, address := range *addresses {
+			serverConfig := ServerSpec{
+				Address: address,
+				Ports:   *serverPorts,
+			}
+			config.ServerConfig = append(config.ServerConfig, serverConfig)
+		}
 
 	case clientCmd.FullCommand():
 		config.ServerMode = false
 		config.Verbose = *verbose
-		config.ServerConfig = ServerSpec{}
-		for _, targetAddress := range *targetAddresses {
+		config.ServerConfig = nil
+		for _, serverAddress := range *serverAddresses {
 			clientConfig := ClientSpec{
-				TargetAddress:      targetAddress,
-				Ports:              *clientPorts,
-				ProbeServerRunning: *probeServerRunning,
-				CheckDockerImages:  *checkDockerImages,
-				ListDockerImages:   *listDockerImages,
+				ServerAddress:     serverAddress,
+				Ports:             *clientPorts,
+				RendezvousRunning: *rendezvousRunning,
+				CheckDockerImages: *checkDockerImages,
+				ListDockerImages:  *listDockerImages,
 			}
 			config.ClientConfig = append(config.ClientConfig, clientConfig)
 		}
@@ -192,7 +200,28 @@ func readConfig() (*Config, error) {
 }
 
 func processServerMode(config *Config) error {
-	ports := config.ServerConfig.Ports
+	var (
+		serverConfig ServerSpec
+	)
+
+	outboundIp := getOutboundIP().String()
+	fmt.Println("Outboud IP: ", outboundIp)
+
+	found := false
+	for _, serverConfig = range config.ServerConfig {
+		serverIp, _ := getAddressIP4(serverConfig.Address)
+
+		if outboundIp == serverIp.String() || serverIp.String() == "127.0.0.1" {
+			found = true
+			break
+		}
+	}
+
+	if found == false {
+		return fmt.Errorf("server address is not found")
+	}
+
+	ports := serverConfig.Ports
 
 	if len(ports) == 0 {
 		return fmt.Errorf("port should be designated")
@@ -209,7 +238,7 @@ func processServerMode(config *Config) error {
 		mux.HandleFunc("/", portCheckHandler)
 		mux.HandleFunc("/dockerImages", dockerImagesHandler)
 
-		fmt.Println("[", idx, "] Listen on http://127.0.0.1:"+port+"/ ...")
+		fmt.Printf("[%02d] Listen on http://%s:%s/ ...\n", idx+1, serverConfig.Address, port)
 
 		wg.Add(1)
 		go func(openPort string) {
@@ -226,10 +255,6 @@ func processServerMode(config *Config) error {
 }
 
 func processClientMode(config *Config) error {
-	var (
-		err	error
-	)
-	
 	httpClient = &http.Client{Timeout: responseTimeout}
 
 	if len(config.ClientConfig) == 0 {
@@ -238,17 +263,21 @@ func processClientMode(config *Config) error {
 
 	// for each target
 	for tIdx, clientConfig := range config.ClientConfig {
-		targetAddr := clientConfig.TargetAddress
+		serverAddr := clientConfig.ServerAddress
 		ports := clientConfig.Ports
 
-		fmt.Println("\n\n=============== [", tIdx, "] Target server:", targetAddr, "===============")
+		fmt.Println("\n\n=============== [", tIdx, "] Server server:", serverAddr, "===============")
 
-		targetAddr, err = getAddressIP4(targetAddr)
-		
+		address, err := getAddressIP4(serverAddr)
+
 		if err != nil {
 			log.Error(err.Error())
 			errorOccur = true
 			continue
+		}
+
+		if address.String() != serverAddr {
+			fmt.Println("\n\tLookup host:", serverAddr, "-->", address)
 		}
 
 		if len(ports) == 0 {
@@ -260,7 +289,7 @@ func processClientMode(config *Config) error {
 		// for each port
 		var successPort string
 		for _, port := range ports {
-			err = processPortProbe(targetAddr, port, clientConfig.ProbeServerRunning)
+			err = processPortProbe(address, port, clientConfig.RendezvousRunning)
 
 			if err != nil {
 				log.Error(err.Error())
@@ -272,9 +301,9 @@ func processClientMode(config *Config) error {
 		}
 
 		// docker images
-		if clientConfig.ProbeServerRunning && successPort != "" &&
+		if clientConfig.RendezvousRunning && successPort != "" &&
 			(clientConfig.ListDockerImages || len(clientConfig.CheckDockerImages) > 0) {
-			err = processDockerImages(targetAddr, successPort, clientConfig.ListDockerImages, clientConfig.CheckDockerImages)
+			err = processDockerImages(address, successPort, clientConfig.ListDockerImages, clientConfig.CheckDockerImages)
 
 			if err != nil {
 				log.Error(err.Error())
@@ -287,11 +316,11 @@ func processClientMode(config *Config) error {
 	return nil
 }
 
-func processPortProbe(targetAddr, port string, serverRunning bool) error {
+func processPortProbe(address net.IP, port string, serverRunning bool) error {
 	fmt.Println("\n\t********** [Port " + port + "] **********")
 
 	// port check
-	target := targetAddr + ":" + port
+	target := address.String() + ":" + port
 
 	startTime := time.Now()
 	conn, err := net.DialTimeout("tcp", target, responseTimeout)
@@ -309,7 +338,7 @@ func processPortProbe(targetAddr, port string, serverRunning bool) error {
 		return nil
 	}
 
-	url := "http://" + targetAddr + ":" + port + "/"
+	url := "http://" + target + "/"
 	request, _ := http.NewRequest(http.MethodGet, url, nil)
 
 	startTime = time.Now()
@@ -346,9 +375,9 @@ func processPortProbe(targetAddr, port string, serverRunning bool) error {
 		return fmt.Errorf("http content hash mismatch")
 	}
 
-	if targetAddr != serverResponse.HostIP {
+	if address.String() != serverResponse.HostIP {
 		if verboseMode {
-			fmt.Println("\trequest address: ", targetAddr)
+			fmt.Println("\trequest address: ", address)
 			fmt.Println("\tresponse aderess: ", serverResponse.HostIP)
 		}
 		return fmt.Errorf("address mismatch")
@@ -364,8 +393,8 @@ func processPortProbe(targetAddr, port string, serverRunning bool) error {
 	return nil
 }
 
-func processDockerImages(targetAddr, port string, list bool, checkImages []string) error {
-	url := "http://" + targetAddr + ":" + port + "/dockerImages"
+func processDockerImages(address net.IP, port string, list bool, checkImages []string) error {
+	url := "http://" + address.String() + ":" + port + "/dockerImages"
 	request, _ := http.NewRequest(http.MethodGet, url, nil)
 
 	response, err := httpClient.Do(request)
@@ -406,7 +435,7 @@ func processDockerImages(targetAddr, port string, list bool, checkImages []strin
 				fmt.Println("\tID :", imageId)
 			}
 
-			if sliceutil.Contains(allRepoTags, imageTag) &&
+			if sliceutil.Contains(allRepoTags, imageTag) && 
 				sliceutil.Contains(allImageId, imageId) {
 				fmt.Println("\t"+image, "--> found\n")
 			} else {
@@ -434,7 +463,7 @@ func portCheckHandler(response http.ResponseWriter, request *http.Request) {
 		hashAsBytes  [sha256.Size]byte
 	)
 
-	responseData.HostIP = GetOutboundIP().String()
+	responseData.HostIP = getOutboundIP().String()
 
 	hostInfo, _ := pshost.Info()
 	responseData.HostInfo = *hostInfo
@@ -490,20 +519,18 @@ func dockerClientInit() error {
 	return nil
 }
 
-func getAddressIP4(address string) (string, error) {
+func getAddressIP4(address string) (net.IP, error) {
 	if validIP4(address) {
-		return address, nil
+		return net.ParseIP(address), nil
 	}
-	
+
 	// lookup host
 	addr, err := net.LookupIP(address)
 	if err != nil {
-      return "", fmt.Errorf("invalid address \"%s\"", address)
-   }
-   
-   fmt.Println("\n\tLookup host:", address, "-->", addr[0])
-   
-   return addr[0].String(), nil
+		return nil, fmt.Errorf("invalid address \"%s\"", address)
+	}
+
+	return addr[0], nil
 }
 
 //https://socketloop.com/tutorials/golang-validate-ip-address
@@ -517,7 +544,7 @@ func validIP4(ipAddress string) bool {
 	return false
 }
 
-func GetOutboundIP() net.IP {
+func getOutboundIP() net.IP {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
 		log.Fatal(err)

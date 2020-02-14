@@ -5,34 +5,42 @@ ServerMode: false
 Verbose: true
 
 ClientConfig:
-  - TargetAddress: 172.27.26.164
+### Target Server-1 ###
+  - ServerAddress: 172.27.26.164
     Ports:
       - 7050
       - 7051
       - 7052
-    ProbeServerRunning: true
 
-    # Next lines have meaning only when above 'ProbeServerRunning' option is true
+    # true if rendezvous is running on server
+    RendezvousRunning: true
+
+    # Next lines have meaning only when above 'RendezvousRunning' is true
     CheckDockerImages:
       - hyperledger/fabric-ccenv:latest:5b31d55f5f3a
       - hyperledger/fabric-tools:1.4.0:0a44f4261a55
       - hyperledger/fabric-orderer:1.4.0:54f372205580
       - hyperledger/fabric-peer:1.4.0:304fac59b501
-      - hyperledger/fabric-baseos:amd64-0.4.14:75f5fb1a0e0c
+      - hyperledger/fabric-couchdb:0.4.18:d369d4eaa0fd
+      - hyperledger/fabric-kafka:0.4.18:caaae0474ef2
+      - hyperledger/fabric-zookeeper:0.4.18:ede9389347db
     ListDockerImages: false
+
+### Target Server-2 ###
+  - ServerAddress: 172.27.26.82
+    Ports:
+      - 7050
+      - 7051
+      - 7052
     
-  - TargetAddress: 172.27.26.82
-    Ports:
-      - 7050
-      - 7051
-      - 7052
-    ProbeServerRunning: true
+    # true if rendezvous is running on server
+    RendezvousRunning: true
 
-    # Next lines have meaning only when above 'ProbeServerRunning' option is true
+    # Next lines have meaning only when above 'RendezvousRunning' is true
     CheckDockerImages:
-      - hyperledger/fabric-ccenv:latest:5b31d55f5f3a
+      - hyperledger/fabric-ccenv:latest:ca4780293e4c
       - hyperledger/fabric-tools:1.4.0:0a44f4261a55
       - hyperledger/fabric-orderer:1.4.0:54f372205580
       - hyperledger/fabric-peer:1.4.0:304fac59b501
-      - hyperledger/fabric-baseos:amd64-0.4.14:75f5fb1a0e0c
     ListDockerImages: false
+

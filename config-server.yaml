@@ -5,7 +5,14 @@ ServerMode: true
 Verbose: true
 
 ServerConfig:
-  Ports:
-    - 7050
-    - 7051
-    - 7052    	
+  - Address: 172.27.26.82
+    Ports:
+      - 7050
+      - 7051
+      - 7052
+
+  - Address: 172.27.26.164
+    Ports:
+      - 7050
+      - 7051
+      - 7052
