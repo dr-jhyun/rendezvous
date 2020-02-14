@@ -1,1 +1,1 @@
-docker run --rm --volume=${PWD}/..:/root rendezvous rendezvous -f config-client.yaml
+docker run --rm --name=rendezvous-client --volume=${PWD}/..:/root rendezvous rendezvous -f config-client.yaml
