@@ -126,7 +126,7 @@ func readConfig() (*Config, error) {
 
 		// client subcommand
 		clientCmd         = app.Command("client", "Client mode")
-		serverAddresses   = clientCmd.Flag("Server address", "Server address to scan").Short('a').Required().Strings()
+		serverAddresses   = clientCmd.Flag("address", "Server address to scan").Short('a').Required().Strings()
 		clientPorts       = clientCmd.Flag("port", "Port to scan").Short('p').Required().Strings()
 		checkDockerImages = clientCmd.Flag("image", "Find Docker images in server").Short('i').Strings()
 		rendezvousRunning = clientCmd.Flag("run", "Server is running in target node").Short('r').Bool()
