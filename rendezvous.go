@@ -266,7 +266,7 @@ func processClientMode(config *Config) error {
 		serverAddr := clientConfig.ServerAddress
 		ports := clientConfig.Ports
 
-		fmt.Println("\n\n   ============ [", tIdx, "] Server:", serverAddr, "============")
+		fmt.Println("\n\n   ============ [", tIdx+1, "] Server:", serverAddr, "============")
 
 		address, err := getAddressIP4(serverAddr)
 
