@@ -266,7 +266,7 @@ func processClientMode(config *Config) error {
 		serverAddr := clientConfig.ServerAddress
 		ports := clientConfig.Ports
 
-		fmt.Println("\n\n   ============ [", tIdx+1, "] Server:", serverAddr, "============")
+		fmt.Println("\n\n   ======== [", tIdx+1, "] Target Server:", serverAddr, "========")
 
 		address, err := getAddressIP4(serverAddr)
 
@@ -437,9 +437,9 @@ func processDockerImages(address net.IP, port string, list bool, checkImages []s
 
 			if sliceutil.Contains(allRepoTags, imageTag) && 
 				sliceutil.Contains(allImageId, imageId) {
-				fmt.Println("\t"+image, "--> found\n")
+				fmt.Println("\t"+image, "--> found")
 			} else {
-				fmt.Println("\t"+image, "--> not found\n")
+				fmt.Println("\t"+image, "--> not found")
 				notFound = true
 			}
 		}
