@@ -103,19 +103,17 @@ Also, Rendezvous can gather various information such as OS type of server throug
 
   https://hub.docker.com/repository/docker/dryun/rendezvous
 
-- In the command below, <yaml file directory> should be replaced with the directory where config-server.yaml and config-client.yaml files are located.
+- In the command below, [yaml file directory] should be replaced with the directory where config-server.yaml and config-client.yaml files are located.
 
 1. Run on server machine
 
    ```
-   # docker run --tty --network=host --rm --volume=<yaml file directory>:/root/yaml --volume=/var/run/docker.
+   # docker run --tty --network=host --rm --volume=[yaml file directory]:/root/yaml --volume=/var/run/docker.
    sock:/var/run/docker.sock dryun/rendezvous:latest rendezvous -f yaml/config-server.yaml
    ```
    
 2. Client machine
 
    ```
-   # docker run --tty --rm --volume=<yaml file directory>/root/yaml dryun/rendezvous:latest rendezvous -f yaml/config-client.yaml
+   # docker run --tty --rm --volume=[yaml file directory]/root/yaml dryun/rendezvous:latest rendezvous -f yaml/config-client.yaml
    ```
-
-   
