@@ -68,8 +68,8 @@ type ServerResponse struct {
 }
 
 const (
-	responseTimeout = 3 * time.Second
-	consensusTimeout = 500 * time.Millisecond
+	responseTimeout = 5 * time.Second
+	consensusTimeout = 200 * time.Millisecond
 )
 
 var (
