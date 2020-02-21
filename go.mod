@@ -11,6 +11,7 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/forestgiant/sliceutil v0.0.0-20160425183142-94783f95db6c
+	github.com/glendc/go-external-ip v0.0.0-20170425150139-139229dcdddd
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect

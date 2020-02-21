@@ -35,6 +35,9 @@ import (
 
 	// https://godoc.org/gopkg.in/alecthomas/kingpin.v2
 	"gopkg.in/alecthomas/kingpin.v2"
+	
+	// https://godoc.org/github.com/GlenDC/go-external-ip
+	"github.com/glendc/go-external-ip"
 )
 
 type Config struct {
@@ -58,7 +61,8 @@ type ClientSpec struct {
 }
 
 type ServerResponse struct {
-	HostIP   string          `json:"hostIP"`
+	OutboundIP   string      `json:"outboundIP"`
+	ExternalIP   string      `json:"externalIP"`
 	HostInfo pshost.InfoStat `json:"hostInfo"`
 	Hash     string          `json:"hash,omitempty"`
 }
@@ -70,6 +74,7 @@ const (
 var (
 	httpClient   *http.Client
 	dockerClient *docker.Client
+	consensus	 *externalip.Consensus
 	log          *goLog.Logger = goLog.New(os.Stderr).WithColor().WithDebug().WithoutTimestamp()
 
 	appVersion       = os.Args[0] + " version 1.0.0\n" + runtime.Version() + " " + runtime.GOOS + "/" + runtime.GOARCH
@@ -101,11 +106,21 @@ func main() {
 	}
 
 	if errorOccur {
-		log.Warn("error occurs during execution")
 		os.Exit(1)
 	}
 
 	return
+}
+
+func init() {
+	httpClient = &http.Client{Timeout: responseTimeout}
+
+	err := dockerClientInit()
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	
+	consensus = externalip.DefaultConsensus(nil, nil)
 }
 
 func readConfig() (*Config, error) {
@@ -205,13 +220,18 @@ func processServerMode(config *Config) error {
 	)
 
 	outboundIp := getOutboundIP().String()
-	fmt.Println("Outboud IP: ", outboundIp)
+	externalIp := getExternalIP().String()
+	
+	fmt.Println("Outbound IP: ", outboundIp)
+	fmt.Println("External IP: ", externalIp)
 
 	found := false
 	for _, serverConfig = range config.ServerConfig {
 		serverIp, _ := getAddressIP4(serverConfig.Address)
 
-		if outboundIp == serverIp.String() || serverIp.String() == "127.0.0.1" {
+		if outboundIp == serverIp.String() || 
+			externalIp == serverIp.String() ||
+			serverIp.String() == "127.0.0.1" {
 			found = true
 			break
 		}
@@ -225,11 +245,6 @@ func processServerMode(config *Config) error {
 
 	if len(ports) == 0 {
 		return fmt.Errorf("port should be designated")
-	}
-
-	err := dockerClientInit()
-	if err != nil {
-		fmt.Println(err.Error())
 	}
 
 	wg := sync.WaitGroup{}
@@ -255,8 +270,6 @@ func processServerMode(config *Config) error {
 }
 
 func processClientMode(config *Config) error {
-	httpClient = &http.Client{Timeout: responseTimeout}
-
 	if len(config.ClientConfig) == 0 {
 		return fmt.Errorf("target address should be designated")
 	}
@@ -370,16 +383,17 @@ func processPortProbe(address net.IP, port string, serverRunning bool) error {
 		if verboseMode {
 			fmt.Println(string(resposeAsBytes))
 			fmt.Println("\treceived hash: ", receivedHash)
-			fmt.Println("\tcalculated hash: ", calcHashAsHexString)
+			fmt.Println("\texpected hash: ", calcHashAsHexString)
 		}
 		return fmt.Errorf("http content hash mismatch")
 	}
 
-	if address.String() != serverResponse.HostIP {
-		if verboseMode {
-			fmt.Println("\trequest address: ", address)
-			fmt.Println("\tresponse aderess: ", serverResponse.HostIP)
-		}
+	if address.String() != serverResponse.OutboundIP &&
+		address.String() != serverResponse.ExternalIP {
+		fmt.Println("\trequest IP: ", address)
+		fmt.Println("\tresponse outbound IP: ", serverResponse.OutboundIP)
+		fmt.Println("\tresponse external IP: ", serverResponse.ExternalIP)
+
 		return fmt.Errorf("address mismatch")
 	}
 
@@ -463,7 +477,8 @@ func portCheckHandler(response http.ResponseWriter, request *http.Request) {
 		hashAsBytes  [sha256.Size]byte
 	)
 
-	responseData.HostIP = getOutboundIP().String()
+	responseData.OutboundIP = getOutboundIP().String()
+	responseData.ExternalIP = getExternalIP().String()
 
 	hostInfo, _ := pshost.Info()
 	responseData.HostInfo = *hostInfo
@@ -556,3 +571,13 @@ func getOutboundIP() net.IP {
 	return localAddr.IP
 }
 
+func getExternalIP() net.IP {
+	ip, err := consensus.ExternalIP()
+
+	if err != nil {
+		log.Error(err.Error())
+		return net.IPv4(0, 0, 0, 0)
+	}
+	
+	return ip
+}
