@@ -35,7 +35,7 @@ import (
 
 	// https://godoc.org/gopkg.in/alecthomas/kingpin.v2
 	"gopkg.in/alecthomas/kingpin.v2"
-	
+
 	// https://godoc.org/github.com/GlenDC/go-external-ip
 	"github.com/glendc/go-external-ip"
 )
@@ -61,21 +61,21 @@ type ClientSpec struct {
 }
 
 type ServerResponse struct {
-	OutboundIP   string      `json:"outboundIP"`
-	ExternalIP   string      `json:"externalIP"`
-	HostInfo pshost.InfoStat `json:"hostInfo"`
-	Hash     string          `json:"hash,omitempty"`
+	OutboundIP string          `json:"outboundIP"`
+	ExternalIP string          `json:"externalIP"`
+	HostInfo   pshost.InfoStat `json:"hostInfo"`
+	Hash       string          `json:"hash,omitempty"`
 }
 
 const (
-	responseTimeout = 3 * time.Second
+	responseTimeout  = 3 * time.Second
 	consensusTimeout = 300 * time.Millisecond
 )
 
 var (
 	httpClient   *http.Client
 	dockerClient *docker.Client
-	consensus	 *externalip.Consensus
+	consensus    *externalip.Consensus
 	log          *goLog.Logger = goLog.New(os.Stderr).WithColor().WithDebug().WithoutTimestamp()
 
 	appVersion       = os.Args[0] + " version 1.0.0\n" + runtime.Version() + " " + runtime.GOOS + "/" + runtime.GOARCH
@@ -94,7 +94,7 @@ func main() {
 		log.Error(err.Error())
 		os.Exit(1)
 	}
-	
+
 	err = initClients(config)
 
 	if err != nil {
@@ -123,16 +123,16 @@ func initClients(config *Config) error {
 	var (
 		err error
 	)
-	
-	consensusConfig := externalip.ConsensusConfig{ Timeout: consensusTimeout }
+
+	consensusConfig := externalip.ConsensusConfig{Timeout: consensusTimeout}
 	consensus = externalip.DefaultConsensus(&consensusConfig, nil)
 
-	httpClient = &http.Client{ Timeout: responseTimeout }
-	
+	httpClient = &http.Client{Timeout: responseTimeout}
+
 	if config.ServerMode {
 		err = dockerClientInit()
 	}
-	
+
 	return err
 }
 
@@ -250,7 +250,7 @@ func processServerMode(config *Config) error {
 
 	outboundIp := getOutboundIP().String()
 	externalIp := getExternalIP().String()
-	
+
 	fmt.Println("Outbound IP: ", outboundIp)
 	fmt.Println("External IP: ", externalIp)
 
@@ -258,7 +258,7 @@ func processServerMode(config *Config) error {
 	for _, serverConfig = range config.ServerConfig {
 		serverIp, _ := getAddressIP4(serverConfig.Address)
 
-		if outboundIp == serverIp.String() || 
+		if outboundIp == serverIp.String() ||
 			externalIp == serverIp.String() ||
 			serverIp.String() == "127.0.0.1" {
 			found = true
@@ -478,7 +478,7 @@ func processDockerImages(address net.IP, port string, list bool, checkImages []s
 				fmt.Println("\tID :", imageId)
 			}
 
-			if sliceutil.Contains(allRepoTags, imageTag) && 
+			if sliceutil.Contains(allRepoTags, imageTag) &&
 				sliceutil.Contains(allImageId, imageId) {
 				fmt.Println("\t"+image, "--> found")
 			} else {
@@ -590,6 +590,6 @@ func getExternalIP() net.IP {
 		log.Error(err.Error())
 		return net.IPv4(0, 0, 0, 0)
 	}
-	
+
 	return ip
 }
