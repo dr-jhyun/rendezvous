@@ -68,7 +68,7 @@ type ServerResponse struct {
 }
 
 const (
-	responseTimeout = 2 * time.Second
+	responseTimeout = 5 * time.Second
 )
 
 var (
