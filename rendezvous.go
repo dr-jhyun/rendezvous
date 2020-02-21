@@ -68,7 +68,8 @@ type ServerResponse struct {
 }
 
 const (
-	responseTimeout = 5 * time.Second
+	responseTimeout = 3 * time.Second
+	consensusTimeout = 500 * time.Millisecond
 )
 
 var (
@@ -120,7 +121,8 @@ func init() {
 		fmt.Println(err.Error())
 	}
 	
-	consensus = externalip.DefaultConsensus(nil, nil)
+	config := &externalip.ConsensusConfig{ Timeout: consensusTimeout }
+	consensus = externalip.DefaultConsensus(config, nil)
 }
 
 func readConfig() (*Config, error) {
