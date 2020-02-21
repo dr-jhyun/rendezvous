@@ -94,6 +94,12 @@ func main() {
 		log.Error(err.Error())
 		os.Exit(1)
 	}
+	
+	err = initClients(config)
+
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 
 	if config.ServerMode {
 		err = processServerMode(config)
@@ -113,16 +119,37 @@ func main() {
 	return
 }
 
-func init() {
-	httpClient = &http.Client{Timeout: responseTimeout}
+func initClients(config *Config) error {
+	var (
+		err error
+	)
+	
+	consensusConfig := externalip.ConsensusConfig{ Timeout: consensusTimeout }
+	consensus = externalip.DefaultConsensus(&consensusConfig, nil)
 
-	err := dockerClientInit()
-	if err != nil {
-		fmt.Println(err.Error())
+	httpClient = &http.Client{ Timeout: responseTimeout }
+	
+	if config.ServerMode {
+		err = dockerClientInit()
 	}
 	
-	config := externalip.ConsensusConfig{ Timeout: consensusTimeout }
-	consensus = externalip.DefaultConsensus(&config, nil)
+	return err
+}
+
+func dockerClientInit() error {
+	var (
+		err error
+	)
+
+	dockerClient, err = docker.NewClientWithOpts(docker.FromEnv)
+	if err != nil {
+		return err
+	}
+
+	dockerClient.NegotiateAPIVersion(context.Background())
+
+	fmt.Println("Docker client API version:", dockerClient.ClientVersion())
+	return nil
 }
 
 func readConfig() (*Config, error) {
@@ -517,23 +544,6 @@ func dockerImagesHandler(response http.ResponseWriter, request *http.Request) {
 	response.Header().Set("Content-Type", "application/json")
 	response.WriteHeader(http.StatusCreated)
 	response.Write(imagesAsBytes)
-}
-
-func dockerClientInit() error {
-	var (
-		err error
-	)
-
-	dockerClient, err = docker.NewClientWithOpts(docker.FromEnv)
-	if err != nil {
-		return err
-	}
-
-	// docker client API 버전과 일치시킴
-	dockerClient.NegotiateAPIVersion(context.Background())
-
-	fmt.Println("Docker client API version:", dockerClient.ClientVersion())
-	return nil
 }
 
 func getAddressIP4(address string) (net.IP, error) {
