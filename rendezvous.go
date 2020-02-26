@@ -348,7 +348,7 @@ func processClientMode(config *Config) error {
 			err = processDockerImages(address, successPort, clientConfig.ListDockerImages, clientConfig.CheckDockerImages)
 
 			if err != nil {
-				log.Error(err.Error())
+				log.Warn(err.Error())
 				errorOccur = true
 				continue
 			}
