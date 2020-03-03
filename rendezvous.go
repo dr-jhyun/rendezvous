@@ -76,7 +76,7 @@ var (
 	httpClient   *http.Client
 	dockerClient *docker.Client
 	consensus    *externalip.Consensus
-	log          *goLog.Logger = goLog.New(os.Stderr).WithColor().WithDebug().WithoutTimestamp()
+	log          *goLog.Logger = goLog.New(os.Stdout).WithColor().WithDebug().WithoutTimestamp()
 
 	appVersion       = os.Args[0] + " version 1.0.0\n" + runtime.Version() + " " + runtime.GOOS + "/" + runtime.GOARCH
 	verboseMode bool = false
