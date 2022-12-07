@@ -7,8 +7,7 @@ Also, Rendezvous can gather various information such as OS type of server throug
 ## Build
 
 ```
-# export GO111MODULE=on
-# go get github.com/docker/docker@master
+# go get -u github.com/docker/docker
 # go build
 ```
 
