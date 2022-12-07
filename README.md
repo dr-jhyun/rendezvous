@@ -7,7 +7,6 @@ Also, Rendezvous can gather various information such as OS type of server throug
 ## Build
 
 ```
-# go get -u github.com/docker/docker
 # go build
 ```
 
@@ -45,7 +44,7 @@ Also, Rendezvous can gather various information such as OS type of server throug
 2. Run Rendezvous on client machine
 
    ```
-   # rendezvous client -v -r -t 172.27.26.82 -p 7050 -p 7051
+   # rendezvous client -v -r -a 172.27.26.82 -p 7050 -p 7051
    ```
 
    ```
